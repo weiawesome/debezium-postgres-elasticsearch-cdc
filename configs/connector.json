@@ -1,0 +1,20 @@
+{
+	"name": "cdc-connector",
+	"config": {
+		"connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+		"database.hostname": "postgres",
+		"database.port": "5432",
+		"database.user": "postgres",
+		"database.password": "postgres_password",
+		"database.dbname": "postgres",
+		"topic.prefix": "cdc",
+		"table.include.list": "public.users",
+		"plugin.name": "pgoutput",
+		"slot.name": "cdc_slot",
+
+		"transforms": "DuplicateTopic",
+		"transforms.DuplicateTopic.type": "org.apache.kafka.connect.transforms.RegexRouter",
+		"transforms.DuplicateTopic.regex": "^(.*)\\.(.*)\\.(.*)$",
+		"transforms.DuplicateTopic.replacement": "$1-$2-$3"
+	}
+}
