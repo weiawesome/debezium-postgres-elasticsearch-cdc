@@ -1,0 +1,124 @@
+services:
+  postgres:
+    image: docker.io/library/postgres:18
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "max_replication_slots=4"
+      - "-c"
+      - "max_wal_senders=4"
+      - "-c"
+      - "wal_keep_size=1GB"
+    volumes:
+      - pgdata:/var/lib/postgresql
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.11
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+  kafka:
+    image: docker.io/confluentinc/cp-kafka:7.7.7
+    container_name: kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://kafka:9092'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      KAFKA_REST_HOST_NAME: rest-proxy
+      KAFKA_REST_BOOTSTRAP_SERVERS: 'kafka:29092'
+      KAFKA_REST_LISTENERS: 'http://0.0.0.0:8082'
+      CLUSTER_ID: '4L6g3nShT-eMCtK--X86sw'
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+      - "29093:29093"
+      - "8082:8082"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+      - kafka_secrets:/etc/kafka/secrets
+      
+
+  connect-debezium:
+    image: quay.io/debezium/connect:3.4.1
+    container_name: connect-debezium
+    environment:
+      - BOOTSTRAP_SERVERS=kafka:9092
+      - CONNECT_BOOTSTRAP_SERVERS=kafka:9092
+      - CONNECT_GROUP_ID=connect-cluster-debezium
+      - CONFIG_STORAGE_TOPIC=connect-configs-debezium
+      - OFFSET_STORAGE_TOPIC=connect-offsets-debezium
+      - STATUS_STORAGE_TOPIC=connect-status-debezium
+      - GROUP_ID=debezium
+      - KEY_CONVERTER=org.apache.kafka.connect.json.JsonConverter
+      - VALUE_CONVERTER=org.apache.kafka.connect.json.JsonConverter
+      - VALUE_CONVERTER_SCHEMAS_ENABLE=false
+    ports:
+      - "8083:8083"
+    volumes:
+      - connect_debezium_data:/kafka/data
+      - connect_debezium_logs:/kafka/logs
+      - connect_debezium_config:/kafka/config
+
+  connect-kafka-es:
+    image: localhost/kafka/connect-kafka-es:7.7.7
+    build:
+      context: .
+      dockerfile: ./build/connect-kafka-es/Dockerfile
+    container_name: connect-kafka-es
+    environment:
+      - CONNECT_BOOTSTRAP_SERVERS=kafka:9092
+      - CONNECT_REST_ADVERTISED_HOST_NAME=kafka-connect
+      - CONNECT_REST_PORT=8083
+      - CONNECT_GROUP_ID=connect-cluster-kafka-es
+      - CONNECT_CONFIG_STORAGE_TOPIC=connect-configs-kafka-es 
+      - CONNECT_OFFSET_STORAGE_TOPIC=connect-offsets-kafka-es
+      - CONNECT_STATUS_STORAGE_TOPIC=connect-status-kafka-es
+      - CONNECT_KEY_CONVERTER=org.apache.kafka.connect.json.JsonConverter
+      - CONNECT_VALUE_CONVERTER=org.apache.kafka.connect.json.JsonConverter
+      - CONNECT_INTERNAL_KEY_CONVERTER=org.apache.kafka.connect.json.JsonConverter
+      - CONNECT_INTERNAL_VALUE_CONVERTER=org.apache.kafka.connect.json.JsonConverter
+      - CONNECT_PLUGIN_PATH=/usr/share/java,/usr/share/confluent-hub-components
+    ports:
+      - "8085:8083"
+    volumes:
+      - connect_kafka_es_jars:/etc/kafka-connect/jars
+      - connect_kafka_es_secrets:/etc/kafka-connect/secrets
+      - connect_kafka_es_kafka_secrets:/etc/kafka/secrets
+      - connect_kafka_es_data:/var/lib/kafka/data
+
+volumes:
+  pgdata:
+  esdata:
+  kafka_data:
+  kafka_secrets:
+  connect_debezium_data:
+  connect_debezium_logs:
+  connect_debezium_config:
+  connect_kafka_es_jars:
+  connect_kafka_es_secrets:
+  connect_kafka_es_kafka_secrets:
+  connect_kafka_es_data:
