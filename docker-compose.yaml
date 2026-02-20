@@ -91,7 +91,8 @@ services:
     container_name: connect-kafka-es
     environment:
       - CONNECT_BOOTSTRAP_SERVERS=kafka:9092
-      - CONNECT_REST_ADVERTISED_HOST_NAME=kafka-connect
+      - CONNECT_REST_ADVERTISED_HOST_NAME=connect-kafka-es
+      - CONNECT_REST_HOST_NAME=0.0.0.0
       - CONNECT_REST_PORT=8083
       - CONNECT_GROUP_ID=connect-cluster-kafka-es
       - CONNECT_CONFIG_STORAGE_TOPIC=connect-configs-kafka-es 
